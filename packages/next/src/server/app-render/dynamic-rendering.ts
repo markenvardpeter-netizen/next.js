@@ -23,7 +23,6 @@
 import type { WorkStore } from '../app-render/work-async-storage.external'
 import type {
   WorkUnitStore,
-  RequestStore,
   PrerenderStoreLegacy,
   PrerenderStoreModern,
   PrerenderStoreModernRuntime,
@@ -50,7 +49,6 @@ import {
 import { scheduleOnNextTick } from '../../lib/scheduler'
 import { BailoutToCSRError } from '../../shared/lib/lazy-dynamic/bailout-to-csr'
 import { InvariantError } from '../../shared/lib/invariant-error'
-import { RenderStage } from './staged-rendering'
 
 const hasPostpone = typeof React.unstable_postpone === 'function'
 
@@ -292,18 +290,6 @@ export function abortOnSynchronousPlatformIOAccess(
     if (dynamicTracking.syncDynamicErrorWithStack === null) {
       dynamicTracking.syncDynamicErrorWithStack = errorWithStack
     }
-  }
-}
-
-export function trackSynchronousPlatformIOAccessInDev(
-  requestStore: RequestStore
-): void {
-  // We don't actually have a controller to abort but we do the semantic equivalent by
-  // advancing the request store out of the prerender stage
-  if (requestStore.stagedRendering) {
-    // TODO: error for sync IO in the runtime stage
-    // (which is not currently covered by the validation render in `spawnDynamicValidationInDev`)
-    requestStore.stagedRendering.advanceStage(RenderStage.Dynamic)
   }
 }
 
@@ -783,8 +769,13 @@ function createErrorWithComponentOrOwnerStack(
       ? React.captureOwnerStack()
       : null
 
+  console.log('ownerStack', ownerStack)
+  console.log('componentStack', componentStack)
+
   const error = new Error(message)
-  error.stack = error.name + ': ' + message + (ownerStack ?? componentStack)
+  // TODO go back to owner stack here if available. This is temporarily using componentStack to get the right
+  //
+  error.stack = error.name + ': ' + message + componentStack
   return error
 }
 

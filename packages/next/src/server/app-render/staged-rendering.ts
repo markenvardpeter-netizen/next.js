@@ -4,18 +4,31 @@ import { createPromiseWithResolvers } from '../../shared/lib/promise-with-resolv
 export enum RenderStage {
   Static = 1,
   Runtime = 2,
-  Dynamic = 3,
+  RuntimeInterrupted = 3,
+  Dynamic = 4,
+  Abandoned = 5,
 }
 
 export type NonStaticRenderStage = RenderStage.Runtime | RenderStage.Dynamic
 
 export class StagedRenderingController {
   currentStage: RenderStage = RenderStage.Static
+  naturalStage: RenderStage = RenderStage.Static
+  staticInterruptReason: Error | null = null
+  runtimeInterruptReason: Error | null = null
+
+  private runtimeStageListeners: Array<() => void> = []
+  private dynamicStageListeners: Array<() => void> = []
 
   private runtimeStagePromise = createPromiseWithResolvers<void>()
   private dynamicStagePromise = createPromiseWithResolvers<void>()
 
-  constructor(private abortSignal: AbortSignal | null = null) {
+  private mayAbandon: boolean = false
+
+  constructor(
+    private abortSignal: AbortSignal | null = null,
+    private hasRuntimePrefetch: boolean
+  ) {
     if (abortSignal) {
       abortSignal.addEventListener(
         'abort',
@@ -32,23 +45,155 @@ export class StagedRenderingController {
         },
         { once: true }
       )
+
+      this.mayAbandon = true
+    }
+  }
+
+  onStage(stage: NonStaticRenderStage, callback: () => void) {
+    if (this.currentStage >= stage) {
+      callback()
+    } else if (stage === RenderStage.Runtime) {
+      this.runtimeStageListeners.push(callback)
+    } else if (stage === RenderStage.Dynamic) {
+      this.dynamicStageListeners.push(callback)
+    } else {
+      // This should never happen
+      throw new InvariantError(`Invalid render stage: ${stage}`)
+    }
+  }
+
+  canInterrupt() {
+    return this.currentStage < RenderStage.RuntimeInterrupted
+  }
+
+  interruptCurrentStageWithReason(reason: Error) {
+    if (this.mayAbandon) {
+      return this.abandonRenderImpl()
+    } else {
+      switch (this.currentStage) {
+        case RenderStage.Static: {
+          // We cannot abandon this render. We need to advance to the Dynamic phase
+          // but we must also capture the interruption reason.
+          this.currentStage = RenderStage.Dynamic
+          this.staticInterruptReason = reason
+
+          const runtimeListeners = this.runtimeStageListeners
+          for (let i = 0; i < runtimeListeners.length; i++) {
+            runtimeListeners[i]()
+          }
+          runtimeListeners.length = 0
+          this.runtimeStagePromise.resolve()
+
+          const dynamicListeners = this.dynamicStageListeners
+          for (let i = 0; i < dynamicListeners.length; i++) {
+            dynamicListeners[i]()
+          }
+          dynamicListeners.length = 0
+          this.dynamicStagePromise.resolve()
+          return
+        }
+        case RenderStage.Runtime: {
+          if (this.hasRuntimePrefetch) {
+            // We cannot abandon this render. We need to advance to the Dynamic phase
+            // but we must also capture the interruption reason.
+            this.currentStage = RenderStage.Dynamic
+            this.runtimeInterruptReason = reason
+
+            const dynamicListeners = this.dynamicStageListeners
+            for (let i = 0; i < dynamicListeners.length; i++) {
+              dynamicListeners[i]()
+            }
+            dynamicListeners.length = 0
+            this.dynamicStagePromise.resolve()
+            return
+          } else {
+            // This render is already in the Runtime stage and won't be validating runtime prefetches.
+            // We don't want to release the dynamic stage early but we do want to change the environment name
+            // so we advance to a special interrupted stage.
+            this.currentStage = RenderStage.RuntimeInterrupted
+            return
+          }
+        }
+        default:
+      }
+    }
+  }
+
+  getStaticInterruptReason() {
+    return this.staticInterruptReason
+  }
+
+  getRuntimeInterruptReason() {
+    return this.runtimeInterruptReason
+  }
+
+  abandonRender() {
+    if (!this.mayAbandon) {
+      throw new InvariantError(
+        '`abandonRender` called on a stage controller that cannot be abandoned.'
+      )
+    }
+
+    this.abandonRenderImpl()
+  }
+
+  private abandonRenderImpl() {
+    switch (this.currentStage) {
+      case RenderStage.Static: {
+        this.currentStage = RenderStage.Abandoned
+
+        const runtimeListeners = this.runtimeStageListeners
+        for (let i = 0; i < runtimeListeners.length; i++) {
+          runtimeListeners[i]()
+        }
+        runtimeListeners.length = 0
+        this.runtimeStagePromise.resolve()
+
+        // Even though we are now in the Dynamic stage we don't resolve the dynamic listeners
+        // since this render will be abandoned and we don't want to do any more work than necessary
+        // to fill caches.
+        return
+      }
+      case RenderStage.Runtime: {
+        // We are interrupting a render which can be abandoned.
+        this.currentStage = RenderStage.Abandoned
+
+        // Even though we are now in the Dynamic stage we don't resolve the dynamic listeners
+        // since this render will be abandoned and we don't want to do any more work than necessary
+        // to fill caches.
+        return
+      }
+      default:
     }
   }
 
   advanceStage(stage: NonStaticRenderStage) {
     // If we're already at the target stage or beyond, do nothing.
     // (this can happen e.g. if sync IO advanced us to the dynamic stage)
-    if (this.currentStage >= stage) {
+    if (stage <= this.currentStage) {
       return
     }
+
+    let currentStage = this.currentStage
     this.currentStage = stage
-    // Note that we might be going directly from Static to Dynamic,
-    // so we need to resolve the runtime stage as well.
-    if (stage >= RenderStage.Runtime) {
+
+    if (currentStage < RenderStage.Runtime && stage >= RenderStage.Runtime) {
+      const runtimeListeners = this.runtimeStageListeners
+      for (let i = 0; i < runtimeListeners.length; i++) {
+        runtimeListeners[i]()
+      }
+      runtimeListeners.length = 0
       this.runtimeStagePromise.resolve()
     }
-    if (stage >= RenderStage.Dynamic) {
+    if (currentStage < RenderStage.Dynamic && stage >= RenderStage.Dynamic) {
+      const dynamicListeners = this.dynamicStageListeners
+      for (let i = 0; i < dynamicListeners.length; i++) {
+        dynamicListeners[i]()
+      }
+      dynamicListeners.length = 0
       this.dynamicStagePromise.resolve()
+      return
     }
   }
 
