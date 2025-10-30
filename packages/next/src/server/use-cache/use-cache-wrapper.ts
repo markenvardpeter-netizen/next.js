@@ -684,7 +684,7 @@ async function generateCacheEntryImpl(
         const hangingPromise = makeHangingPromise<never>(
           outerWorkUnitStore.renderSignal,
           workStore.route,
-          abortSignal.reason.message
+          dynamicAccessAbortSignal.reason.message
         )
 
         if (outerWorkUnitStore.cacheSignal) {
