@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Algowim – Block Selector (Browser Demo)</title>
+<style>
+  :root {
+    --bg: #f7f7f8; --card:#fff; --text:#111; --muted:#6b7280; --border:#e5e7eb;
+    --accent:#111; --accent-2:#0ea5e9; --pin:#f59e0b; --danger:#dc2626;
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font: 14px/1.4 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color:var(--text); background:var(--bg); }
+  .wrap{ max-width:1200px; margin:0 auto; padding:24px; }
+  h1{ font-size:24px; margin:0 0 6px; }
+  p.lead{ color:var(--muted); margin:0 0 20px; }
+  .row{ display:grid; grid-template-columns:1fr; gap:16px; }
+  @media (min-width: 1024px){ .row{ grid-template-columns: 360px 1fr; } }
+  .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow: 0 1px 0 rgba(0,0,0,.03); }
+  .card-h{ padding:16px 16px 0; }
+  .card-h h2{ margin:0 0 6px; font-size:16px; }
+  .card-h .muted{ color:var(--muted); font-size:12px; }
+  .card-b{ padding:16px; }
+  .controls .group{ margin-bottom:14px; }
+  .label{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-weight:600; }
+  input[type=range]{ width:100%; }
+  .small{ color:var(--muted); font-size:12px; }
+  .row-tiles{ display:grid; grid-template-columns:repeat(1, minmax(0,1fr)); gap:12px; }
+  @media (min-width: 768px){ .row-tiles{ grid-template-columns:repeat(2, minmax(0,1fr)); } }
+  @media (min-width: 1280px){ .row-tiles{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+  .tile{ border:1px solid var(--border); border-radius:12px; padding:12px; background:#fff; display:flex; flex-direction:column; gap:8px; }
+  .tile h3{ margin:0; font-size:15px; display:flex; justify-content:space-between; align-items:center; }
+  .pin{ font-size:11px; border:none; border-radius:999px; padding:4px 8px; cursor:pointer; background:#eee; }
+  .pin.active{ background:var(--pin); color:#fff; }
+  .desc{ color:var(--muted); font-size:13px; }
+  .tags{ display:flex; flex-wrap:wrap; gap:6px; }
+  .tag{ border:1px solid var(--border); border-radius:999px; padding:2px 8px; font-size:12px; background:#fff; cursor:pointer; }
+  .tag.req{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  .tag.ex{ background:var(--danger); color:#fff; border-color:var(--danger); }
+  .grid5{ display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+  .metric{ background:#f3f4f6; border-radius:8px; padding:6px; text-align:center; font-size:12px; }
+  .metric .k{ text-transform:capitalize; font-weight:600; margin-bottom:2px; }
+  .btns{ display:flex; gap:8px; flex-wrap:wrap; }
+  button, .btn{ appearance:none; border:1px solid var(--border); background:#fff; padding:8px 10px; border-radius:10px; cursor:pointer; }
+  button.primary{ background:var(--accent); color:#fff; border-color:var(--accent); }
+  textarea{ width:100%; min-height:160px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; border:1px solid var(--border); border-radius:10px; padding:10px; }
+  .flex{ display:flex; gap:8px; align-items:center; }
+  .between{ display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .divider{ height:1px; background:var(--border); margin:12px 0; }
+  .help{ font-size:12px; color:var(--muted); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Algowim – Block Selector Prototype</h1>
+    <p class="lead">Pick top-matching information blocks from a pool using slider-controlled preferences, weights, and tag filters. Pin favorites and export as JSON.</p>
+
+    <div class="row">
+      <!-- Controls -->
+      <div class="card controls">
+        <div class="card-h">
+          <h2>Preferences</h2>
+          <div class="muted">Adjust targets and (optionally) weights to influence selection.</div>
+        </div>
+        <div class="card-b">
+          <div class="group">
+            <div class="label"><span>Novelty</span><span id="v-novelty">70</span></div>
+            <input id="s-novelty" type="range" min="0" max="100" value="70" />
+          </div>
+          <div class="group">
+            <div class="label"><span>Feasibility</span><span id="v-feasibility">70</span></div>
+            <input id="s-feasibility" type="range" min="0" max="100" value="70" />
+          </div>
+          <div class="group">
+            <div class="label"><span>Impact</span><span id="v-impact">80</span></div>
+            <input id="s-impact" type="range" min="0" max="100" value="80" />
+          </div>
+          <div class="group">
+            <div class="label"><span>Budget (prefer cheaper)</span><span id="v-budget">70</span></div>
+            <input id="s-budget" type="range" min="0" max="100" value="70" />
+          </div>
+          <div class="group">
+            <div class="label"><span>Speed (prefer faster)</span><span id="v-speed">80</span></div>
+            <input id="s-speed" type="range" min="0" max="100" value="80" />
+          </div>
+
+          <div class="group between">
+            <div class="flex">
+              <input id="chk-weights" type="checkbox" />
+              <label for="chk-weights">Show weights</label>
+            </div>
+            <div>
+              <label for="results" class="small">Results</label>
+              <input id="results" type="number" min="1" max="12" value="6" style="width:60px; margin-left:6px;" />
+            </div>
+          </div>
+
+          <div id="weights" style="display:none; background:#f8fafc; padding:10px; border-radius:10px;">
+            <div class="small" style="margin-bottom:6px; text-transform:uppercase;">Weights</div>
+            <div class="group">
+              <div class="label"><span>Novelty</span><span id="w-novelty">1</span></div>
+              <input id="sw-novelty" type="range" min="0" max="3" value="1" step="1" />
+            </div>
+            <div class="group">
+              <div class="label"><span>Feasibility</span><span id="w-feasibility">1</span></div>
+              <input id="sw-feasibility" type="range" min="0" max="3" value="1" step="1" />
+            </div>
+            <div class="group">
+              <div class="label"><span>Impact</span><span id="w-impact">2</span></div>
+              <input id="sw-impact" type="range" min="0" max="3" value="2" step="1" />
+            </div>
+            <div class="group">
+              <div class="label"><span>Budget</span><span id="w-budget">1</span></div>
+              <input id="sw-budget" type="range" min="0" max="3" value="1" step="1" />
+            </div>
+            <div class="group">
+              <div class="label"><span>Speed</span><span id="w-speed">1</span></div>
+              <input id="sw-speed" type="range" min="0" max="3" value="1" step="1" />
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="group">
+            <div class="label" style="margin-bottom:8px;">Filter by tags</div>
+            <div class="small" style="margin-bottom:8px;">Click a tag to <b>require</b>. Alt/Option-click to <b>exclude</b>.</div>
+            <div id="tags" class="tags"></div>
+          </div>
+
+          <div class="btns">
+            <button id="btn-reset">Reset</button>
+            <button id="btn-copy">Copy JSON</button>
+            <button id="btn-download">Download</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results & Pool Editor -->
+      <div class="col">
+        <div class="card">
+          <div class="card-h">
+            <h2>Top Matches</h2>
+            <div class="muted">Blocks ranked by fit. Pin what you like, then export.</div>
+          </div>
+          <div class="card-b">
+            <div id="results-grid" class="row-tiles"></div>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <div class="card-h">
+            <h2>Block Pool</h2>
+            <div class="muted">Edit the pool JSON or reset to defaults to experiment.</div>
+          </div>
+          <div class="card-b">
+            <div class="btns" style="margin-bottom:8px;">
+              <button id="btn-pool-reset">Reset Pool</button>
+              <button id="btn-pool-load">Load from JSON</button>
+              <span class="help">Schema: <code>[ { id, title, desc, tags:[], metrics:{novelty,feasibility,impact,cost,time} } ]</code></span>
+            </div>
+            <textarea id="pool-json"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ------------------ Data Types (informal) ------------------
+// Block: { id, title, desc, tags: string[], metrics:{ novelty, feasibility, impact, cost, time } }
+
+const DEFAULT_POOL = [
+  { id:"B-001", title:"AI Persona Survey", desc:"Lightweight survey that builds a live persona model from early adopter responses.", tags:["research","ux","early-stage"], metrics:{ novelty:65, feasibility:90, impact:60, cost:20, time:15 } },
+  { id:"B-002", title:"Trend Radar (Realtime)", desc:"Streams category signals into a simple heatmap.", tags:["trends","data","insights"], metrics:{ novelty:80, feasibility:55, impact:70, cost:35, time:30 } },
+  { id:"B-003", title:"Concept Crossbreeder", desc:"Mixes two concepts with constraint prompts to generate hybrid directions.", tags:["ideation","generator","ai"], metrics:{ novelty:88, feasibility:60, impact:75, cost:25, time:10 } },
+  { id:"B-004", title:"Feasibility Spike", desc:"48h engineering spike to de-risk a single core uncertainty.", tags:["engineering","risk","validation"], metrics:{ novelty:40, feasibility:85, impact:65, cost:30, time:20 } },
+  { id:"B-005", title:"One-Page WIMfile", desc:"Auto-structured concept brief with value props, risks, and early KPIs.", tags:["doc","wimfile","structure"], metrics:{ novelty:55, feasibility:95, impact:80, cost:10, time:10 } },
+  { id:"B-006", title:"Optical Quality Pass", desc:"AR overlay to check physical prototype alignment and finishing quality.", tags:["hardware","optics","qa"], metrics:{ novelty:72, feasibility:50, impact:68, cost:45, time:40 } },
+  { id:"B-007", title:"Market Smoke Test", desc:"Landing page + waitlist with ad spend calibration for demand validation.", tags:["gtm","growth","validation"], metrics:{ novelty:50, feasibility:90, impact:85, cost:20, time:12 } },
+  { id:"B-008", title:"DPP Readiness Scan", desc:"Checklist + data hooks for Digital Product Passport alignment.", tags:["compliance","dpp","eu"], metrics:{ novelty:45, feasibility:80, impact:78, cost:18, time:15 } },
+];
+
+// ------------------ State ------------------
+let pool = JSON.parse(JSON.stringify(DEFAULT_POOL));
+let pinned = {}; // id:boolean
+
+const prefs = {
+  targets: { novelty:70, feasibility:70, impact:80, budget:70, speed:80 },
+  weights: { novelty:1, feasibility:1, impact:2, budget:1, speed:1 },
+  results: 6,
+  requiredTags: [],
+  excludedTags: [],
+};
+
+// ------------------ Helpers ------------------
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const map01 = x => clamp01(x/100);
+
+function normalizeWeights(w){
+  const sum = w.novelty + w.feasibility + w.impact + w.budget + w.speed;
+  if(!sum) return { novelty:1, feasibility:1, impact:1, budget:1, speed:1 };
+  return {
+    novelty: w.novelty/sum,
+    feasibility: w.feasibility/sum,
+    impact: w.impact/sum,
+    budget: w.budget/sum,
+    speed: w.speed/sum,
+  };
+}
+
+function scoreBlock(block){
+  const d = block.metrics;
+  const desir = {
+    novelty: map01(d.novelty),
+    feasibility: map01(d.feasibility),
+    impact: map01(d.impact),
+    cost: 1 - map01(d.cost),
+    time: 1 - map01(d.time),
+  };
+  const t = {
+    novelty: map01(prefs.targets.novelty),
+    feasibility: map01(prefs.targets.feasibility),
+    impact: map01(prefs.targets.impact),
+    cost: map01(prefs.targets.budget),
+    time: map01(prefs.targets.speed),
+  };
+  const w = normalizeWeights(prefs.weights);
+  const v = [desir.novelty, desir.feasibility, desir.impact, desir.cost, desir.time];
+  const T = [t.novelty, t.feasibility, t.impact, t.cost, t.time];
+  const W = [w.novelty, w.feasibility, w.impact, w.budget, w.speed];
+  let dot=0, wsum=0; for(let i=0;i<v.length;i++){ dot += v[i]*T[i]*W[i]; wsum += W[i]; }
+  return dot/(wsum||1);
+}
+
+function uniqueTags(){
+  return Array.from(new Set(pool.flatMap(b=>b.tags))).sort();
+}
+
+function applyFilters(list){
+  return list.filter(b=>
+    (prefs.requiredTags.length===0 || prefs.requiredTags.every(t=>b.tags.includes(t))) &&
+    (prefs.excludedTags.length===0 || prefs.excludedTags.every(t=>!b.tags.includes(t)))
+  );
+}
+
+function computeResults(){
+  const filtered = applyFilters(pool);
+  const scored = filtered.map(b=>({ block:b, score:scoreBlock(b) }))
+                         .sort((a,b)=>b.score - a.score);
+  // move pinned to top (stable)
+  const withPins = scored.sort((a,b)=> (Number(!!pinned[b.block.id]) - Number(!!pinned[a.block.id])));
+  return withPins.slice(0, prefs.results);
+}
+
+// ------------------ DOM Bindings ------------------
+const val = id => document.getElementById(id);
+const grid = val('results-grid');
+const tagsEl = val('tags');
+
+function bindSliders(){
+  const pairs = [
+    ['novelty','s-novelty','v-novelty'],
+    ['feasibility','s-feasibility','v-feasibility'],
+    ['impact','s-impact','v-impact'],
+    ['budget','s-budget','v-budget'],
+    ['speed','s-speed','v-speed'],
+  ];
+  for(const [key, sid, vid] of pairs){
+    val(sid).addEventListener('input', e=>{ prefs.targets[key]=+e.target.value; val(vid).textContent=e.target.value; render(); });
+  }
+  val('results').addEventListener('input', e=>{ prefs.results = Math.max(1, Math.min(12, +e.target.value||6)); render(); });
+
+  val('chk-weights').addEventListener('change', e=>{ val('weights').style.display = e.target.checked ? 'block':'none'; });
+
+  const wpairs = [
+    ['novelty','sw-novelty','w-novelty'],
+    ['feasibility','sw-feasibility','w-feasibility'],
+    ['impact','sw-impact','w-impact'],
+    ['budget','sw-budget','w-budget'],
+    ['speed','sw-speed','w-speed'],
+  ];
+  for(const [key,sid,vid] of wpairs){
+    val(sid).addEventListener('input', e=>{ prefs.weights[key]=+e.target.value; val(vid).textContent=e.target.value; render(); });
+  }
+
+  val('btn-reset').addEventListener('click', ()=>{ 
+    Object.assign(prefs.targets,{novelty:70,feasibility:70,impact:80,budget:70,speed:80});
+    Object.assign(prefs.weights,{novelty:1,feasibility:1,impact:2,budget:1,speed:1});
+    prefs.results=6; prefs.requiredTags=[]; prefs.excludedTags=[]; pinned={};
+    ['s-novelty','s-feasibility','s-impact','s-budget','s-speed'].forEach((id,i)=>{ val(id).value=[70,70,80,70,80][i]; });
+    ['v-novelty','v-feasibility','v-impact','v-budget','v-speed'].forEach((id,i)=>{ val(id).textContent=[70,70,80,70,80][i]; });
+    ['sw-novelty','sw-feasibility','sw-impact','sw-budget','sw-speed'].forEach((id,i)=>{ val(id).value=[1,1,2,1,1][i]; });
+    ['w-novelty','w-feasibility','w-impact','w-budget','w-speed'].forEach((id,i)=>{ val(id).textContent=[1,1,2,1,1][i]; });
+    val('results').value=6; renderTags(); render();
+  });
+
+  val('btn-copy').addEventListener('click', async ()=>{
+    const payload = exportPayload();
+    try{ await navigator.clipboard.writeText(JSON.stringify(payload, null, 2)); alert('Selection JSON copied to clipboard.'); }
+    catch(e){ alert('Could not copy: '+e); }
+  });
+
+  val('btn-download').addEventListener('click', ()=>{
+    const payload = exportPayload();
+    const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href=url; a.download = `algowim-blocks-${Date.now()}.json`; a.click(); URL.revokeObjectURL(url);
+  });
+}
+
+function exportPayload(){
+  const res = computeResults();
+  return {
+    prefs: JSON.parse(JSON.stringify(prefs)),
+    selection: res.map(r=>r.block),
+    pinned: Object.keys(pinned).filter(id=>pinned[id]),
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function renderTags(){
+  tagsEl.innerHTML = '';
+  const all = uniqueTags();
+  for(const t of all){
+    const btn = document.createElement('button');
+    btn.className = 'tag';
+    btn.textContent = t;
+    if(prefs.requiredTags.includes(t)) btn.classList.add('req');
+    if(prefs.excludedTags.includes(t)) btn.classList.add('ex');
+    btn.title = prefs.excludedTags.includes(t) ? 'Excluded' : prefs.requiredTags.includes(t) ? 'Required' : 'Click to require • Alt-click to exclude';
+    btn.addEventListener('click', (e)=>{
+      if(e.altKey){
+        // toggle exclude
+        const i = prefs.excludedTags.indexOf(t);
+        if(i>-1) prefs.excludedTags.splice(i,1); else prefs.excludedTags.push(t);
+        // ensure not both
+        const j = prefs.requiredTags.indexOf(t); if(j>-1) prefs.requiredTags.splice(j,1);
+      } else {
+        // toggle require
+        const i = prefs.requiredTags.indexOf(t);
+        if(i>-1) prefs.requiredTags.splice(i,1); else prefs.requiredTags.push(t);
+        const j = prefs.excludedTags.indexOf(t); if(j>-1) prefs.excludedTags.splice(j,1);
+      }
+      renderTags(); render();
+    });
+    tagsEl.appendChild(btn);
+  }
+}
+
+function renderResults(){
+  const res = computeResults();
+  grid.innerHTML = '';
+  for(const {block, score} of res){
+    const tile = document.createElement('div'); tile.className='tile';
+    const head = document.createElement('h3');
+    head.innerHTML = `<span>${escapeHtml(block.title)}</span>`;
+    const pin = document.createElement('button'); pin.className='pin'; pin.textContent = pinned[block.id] ? 'Pinned' : 'Pin'; if(pinned[block.id]) pin.classList.add('active');
+    pin.addEventListener('click', ()=>{ pinned[block.id] = !pinned[block.id]; renderResults(); });
+    head.appendChild(pin);
+
+    const desc = document.createElement('div'); desc.className='desc'; desc.textContent = block.desc;
+    const tags = document.createElement('div'); tags.className='tags'; tags.append(...block.tags.map(t=>{ const b=document.createElement('span'); b.className='tag'; b.textContent=t; b.tabIndex=0; return b; }));
+    const sc = document.createElement('div'); sc.className='small'; sc.textContent = `Score: ${Math.round(score*100)}%`;
+
+    const m = document.createElement('div'); m.className='grid5';
+    for(const [k,v] of Object.entries(block.metrics)){
+      const d = document.createElement('div'); d.className='metric';
+      const nk = document.createElement('div'); nk.className='k'; nk.textContent = k;
+      const nv = document.createElement('div'); nv.textContent = v;
+      d.append(nk,nv); m.appendChild(d);
+    }
+
+    tile.append(head, desc, tags, sc, m);
+    grid.appendChild(tile);
+  }
+}
+
+function escapeHtml(str){
+  return str.replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[s]));
+}
+
+function bindPoolEditor(){
+  const ta = val('pool-json');
+  ta.value = JSON.stringify(pool, null, 2);
+  val('btn-pool-reset').addEventListener('click', ()=>{ pool = JSON.parse(JSON.stringify(DEFAULT_POOL)); ta.value = JSON.stringify(pool, null, 2); renderTags(); render(); });
+  val('btn-pool-load').addEventListener('click', ()=>{
+    try{
+      const parsed = JSON.parse(ta.value);
+      if(!Array.isArray(parsed)) throw new Error('JSON must be an array');
+      // naive schema check
+      for(const b of parsed){ if(!b.id || !b.title || !b.metrics) throw new Error('Each block needs id/title/metrics'); }
+      pool = parsed; renderTags(); render();
+    }catch(e){ alert('Invalid JSON for pool: '+e.message); }
+  });
+}
+
+function render(){ renderResults(); }
+
+// Init
+bindSliders();
+renderTags();
+bindPoolEditor();
+render();
+</script>
+</body>
+</html>
